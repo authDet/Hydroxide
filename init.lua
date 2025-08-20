@@ -48,7 +48,7 @@ end
 local globalMethods = {
     checkCaller = checkcaller,
     newCClosure = newcclosure,
-    hookFunction = hookfunction or detour_function,
+    hookFunction = hookFunction or detour_function,
     getGc = getgc or get_gc_objects,
     getInfo = debug.getinfo or getinfo,
     getSenv = getsenv,
@@ -85,7 +85,7 @@ local globalMethods = {
               or istempleclosure
               or checkclosure
               or dummy,
-    hookMetaMethod = hookMetaMethod or (hookfunction and function(object, method, hook) local mt = (getrawmetatable or debug.getmetatable)(object); return mt and hookfunction(mt[method], hook) end),
+    hookMetaMethod = hookMetaMethod or (hookFunction and function(object, method, hook) local mt = (getrawmetatable or debug.getmetatable)(object); return mt and hookFunction(mt[method], hook) end),
     readFile = readfile,
     writeFile = writefile,
     makeFolder = makefolder,
@@ -155,9 +155,9 @@ environment.oh = {
         for original, hook in pairs(oh.Hooks) do
             local hookType = type(hook)
             if hookType == "function" then
-                if hookfunction then hookfunction(hook, original) end
-            elseif hookType == "table" and hook.Closure and hook.Original and hookfunction then
-                hookfunction(hook.Closure.Data, hook.Original)
+                if hookFunction then hookFunction(hook, original) end
+            elseif hookType == "table" and hook.Closure and hook.Original and hookFunction then
+                hookFunction(hook.Closure.Data, hook.Original)
             end
         end
         local ui = importCache["rbxassetid://11389137937"]
