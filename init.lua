@@ -85,7 +85,7 @@ local globalMethods = {
               or istempleclosure
               or checkclosure
               or dummy,
-    hookMetaMethod = hookmetamethod or (hookfunction and function(object, method, hook) local mt = (getrawmetatable or debug.getmetatable)(object); return mt and hookfunction(mt[method], hook) end),
+    hookMetaMethod = hookMetaMethod or (hookfunction and function(object, method, hook) local mt = (getrawmetatable or debug.getmetatable)(object); return mt and hookfunction(mt[method], hook) end),
     readFile = readfile,
     writeFile = writefile,
     makeFolder = makefolder,
