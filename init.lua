@@ -41,6 +41,10 @@ if Window and PROTOSMASHER_LOADED then
     getgenv().get_script_function = nil
 end
 
+local function dummy(...)
+    return false
+end
+
 local globalMethods = {
     checkCaller = checkcaller,
     newCClosure = newcclosure,
@@ -72,7 +76,7 @@ local globalMethods = {
     setReadOnly = setreadonly or (make_writeable and function(t, readonly) if readonly then make_readonly(t) else make_writeable(t) end end),
     isLClosure = islclosure or is_l_closure or (iscclosure and function(closure) return not iscclosure(closure) end),
     isReadOnly = isreadonly or is_readonly,
-    isXClosure = is_synapse_function or issentinelclosure or is_protosmasher_closure or is_sirhurt_closure or iselectronfunction or istempleclosure or checkclosure,
+    is_synapse_function or issentinelclosure or is_protosmasher_closure or is_sirhurt_closure or iselectronfunction or istempleclosure or checkclosure or dummy,  -- fallback safe
     hookMetaMethod = hookmetamethod or (hookfunction and function(object, method, hook) local mt = (getrawmetatable or debug.getmetatable)(object); return mt and hookfunction(mt[method], hook) end),
     readFile = readfile,
     writeFile = writefile,
