@@ -5,9 +5,20 @@ if oh then
 end
 
 local web = true
-local user = "Upbolt" -- change if you're using a fork
+local user = "authDet" -- change if you're using a fork
 local branch = "revision"
 local importCache = {}
+
+-- دالة HTTP آمنة
+local function fetch(url)
+    if game and game.HttpGet then
+        return game:HttpGet(game, url)
+    elseif game and game.HttpGetAsync then
+        return game:HttpGetAsync(game, url)
+    else
+        error("<OH> ~ No HTTP method available in this executor")
+    end
+end
 
 local function hasMethods(methods)
     for name in pairs(methods) do
@@ -15,7 +26,6 @@ local function hasMethods(methods)
             return false
         end
     end
-
     return true
 end
 
@@ -59,11 +69,11 @@ local globalMethods = {
     setContext = setthreadcontext or set_thread_context or (syn and syn.set_thread_identity),
     setUpvalue = debug.setupvalue or setupvalue or setupval,
     setStack = debug.setstack or setstack,
-    setReadOnly = setreadonly or (make_writeable and function(table, readonly) if readonly then make_readonly(table) else make_writeable(table) end end),
+    setReadOnly = setreadonly or (make_writeable and function(t, readonly) if readonly then make_readonly(t) else make_writeable(t) end end),
     isLClosure = islclosure or is_l_closure or (iscclosure and function(closure) return not iscclosure(closure) end),
     isReadOnly = isreadonly or is_readonly,
     isXClosure = is_synapse_function or issentinelclosure or is_protosmasher_closure or is_sirhurt_closure or iselectronfunction or istempleclosure or checkclosure,
-    hookMetaMethod = hookmetamethod or (hookfunction and function(object, method, hook) return hookfunction(getMetatable(object)[method], hook) end),
+    hookMetaMethod = hookmetamethod or (hookfunction and function(object, method, hook) local mt = (getrawmetatable or debug.getmetatable)(object); return mt and hookfunction(mt[method], hook) end),
     readFile = readfile,
     writeFile = writefile,
     makeFolder = makefolder,
@@ -84,7 +94,6 @@ globalMethods.getUpvalue = function(closure, index)
     if type(closure) == "table" then
         return oldGetUpvalue(closure.Data, index)
     end
-
     return oldGetUpvalue(closure, index)
 end
 
@@ -92,7 +101,6 @@ globalMethods.getUpvalues = function(closure)
     if type(closure) == "table" then
         return oldGetUpvalues(closure.Data)
     end
-
     return oldGetUpvalues(closure)
 end
 
@@ -132,162 +140,117 @@ environment.oh = {
         for _i, event in pairs(oh.Events) do
             event:Disconnect()
         end
-
         for original, hook in pairs(oh.Hooks) do
             local hookType = type(hook)
             if hookType == "function" then
-                hookFunction(hook, original)
-            elseif hookType == "table" then
-                hookFunction(hook.Closure.Data, hook.Original)
+                if hookfunction then hookfunction(hook, original) end
+            elseif hookType == "table" and hook.Closure and hook.Original and hookfunction then
+                hookfunction(hook.Closure.Data, hook.Original)
             end
         end
-
         local ui = importCache["rbxassetid://11389137937"]
         local assets = importCache["rbxassetid://5042114982"]
-
-        if ui then
-            unpack(ui):Destroy()
-        end
-
-        if assets then
-            unpack(assets):Destroy()
-        end
+        if ui and next(ui) then unpack(ui):Destroy() end
+        if assets and next(assets) then unpack(assets):Destroy() end
     end
 }
 
-if getConnections then 
-    for __, connection in pairs(getConnections(game:GetService("ScriptContext").Error)) do
-
-        local conn = getrawmetatable(connection)
-        local old = conn and conn.__index
-        
-        if PROTOSMASHER_LOADED ~= nil then setwriteable(conn) else setReadOnly(conn, false) end
-        
-        if old then
-            conn.__index = newcclosure(function(t, k)
-                if k == "Connected" then
-                    return true
-                end
-                return old(t, k)
-            end)
-        end
-
-        if PROTOSMASHER_LOADED ~= nil then
-            setReadOnly(conn)
-            connection:Disconnect()
-        else
-            setReadOnly(conn, true)
-            connection:Disable()
-        end
-    end
-end
-
+-- اجعل الطرق العالمية متاحة قبل التعامل مع getConnections
 useMethods(globalMethods)
 
-local HttpService = game:GetService("HttpService")
-local releaseInfo = HttpService:JSONDecode(game:HttpGetAsync("https://api.github.com/repos/" .. user .. "/Hydroxide/releases"))[1]
-
-if readFile and writeFile then
-    local hasFolderFunctions = (isFolder and makeFolder) ~= nil
-    local ran, result = pcall(readFile, "__oh_version.txt")
-
-    if not ran or releaseInfo.tag_name ~= result then
-        if hasFolderFunctions then
-            local function createFolder(path)
-                if not isFolder(path) then
-                    makeFolder(path)
-                end
+if getConnections then
+    for __, connection in pairs(getConnections(game:GetService("ScriptContext").Error)) do
+        local conn = getrawmetatable and getrawmetatable(connection)
+        if conn then
+            local old = conn.__index
+            if PROTOSMASHER_LOADED ~= nil then
+                if setwriteable then setwriteable(conn) end
+            else
+                if setReadOnly then setReadOnly(conn, false) end
             end
-
-            createFolder("hydroxide")
-            createFolder("hydroxide/user")
-            createFolder("hydroxide/user/" .. user)
-            createFolder("hydroxide/user/" .. user .. "/methods")
-            createFolder("hydroxide/user/" .. user .. "/modules")
-            createFolder("hydroxide/user/" .. user .. "/objects")
-            createFolder("hydroxide/user/" .. user .. "/ui")
-            createFolder("hydroxide/user/" .. user .. "/ui/controls")
-            createFolder("hydroxide/user/" .. user .. "/ui/modules")
-        end
-
-        function environment.import(asset)
-            if importCache[asset] then
-                return unpack(importCache[asset])
-            end
-
-            local assets
-
-            if asset:find("rbxassetid://") then
-                assets = { game:GetObjects(asset)[1] }
-            elseif web then
-                if readFile and writeFile then
-                    local file = (hasFolderFunctions and "hydroxide/user/" .. user .. '/' .. asset .. ".lua") or ("hydroxide-" .. user .. '-' .. asset:gsub('/', '-') .. ".lua")
-                    local content
-
-                    if (isFile and not isFile(file)) or not importCache[asset] then
-                        content = game:HttpGetAsync("https://raw.githubusercontent.com/" .. user .. "/Hydroxide/" .. branch .. '/' .. asset .. ".lua")
-                        writeFile(file, content)
-                    else
-                        local ran, result = pcall(readFile, file)
-
-                        if (not ran) or not importCache[asset] then
-                            content = game:HttpGetAsync("https://raw.githubusercontent.com/" .. user .. "/Hydroxide/" .. branch .. '/' .. asset .. ".lua")
-                            writeFile(file, content)
-                        else
-                            content = result
-                        end
+            if old then
+                if newcclosure then
+                    conn.__index = newcclosure(function(t, k)
+                        if k == "Connected" then return true end
+                        return old(t, k)
+                    end)
+                else
+                    conn.__index = function(t, k)
+                        if k == "Connected" then return true end
+                        return old and old(t, k)
                     end
-
-                    assets = { loadstring(content, asset .. '.lua')() }
-                else
-                    assets = { loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/" .. user .. "/Hydroxide/" .. branch .. '/' .. asset .. ".lua"), asset .. '.lua')() }
                 end
+            end
+            if PROTOSMASHER_LOADED ~= nil then
+                if connection.Disconnect then connection:Disconnect()
+                elseif connection.Disable then connection:Disable() end
             else
-                assets = { loadstring(readFile("hydroxide/" .. asset .. ".lua"), asset .. '.lua')() }
+                if connection.Disable then connection:Disable()
+                elseif connection.Disconnect then connection:Disconnect() end
             end
-
-            importCache[asset] = assets
-            return unpack(assets)
         end
-
-        writeFile("__oh_version.txt", releaseInfo.tag_name)
-    elseif ran and releaseInfo.tag_name == result then
-        function environment.import(asset)
-            if importCache[asset] then
-                return unpack(importCache[asset])
-            end
-
-            if asset:find("rbxassetid://") then
-                assets = { game:GetObjects(asset)[1] }
-            elseif web then
-                local file = (hasFolderFunctions and "hydroxide/user/" .. user .. '/' .. asset .. ".lua") or ("hydroxide-" .. user .. '-' .. asset:gsub('/', '-') .. ".lua")
-                local ran, result = pcall(readFile, file)
-                local content
-
-                if not ran then
-                    content = game:HttpGetAsync("https://raw.githubusercontent.com/" .. user .. "/Hydroxide/" .. branch .. '/' .. asset .. ".lua")
-                    writeFile(file, content)
-                else
-                    content = result
-                end
-
-                assets = { loadstring(content, asset .. '.lua')() }
-            else
-                assets = { loadstring(readFile("hydroxide/" .. asset .. ".lua"), asset .. '.lua')() }
-            end
-
-            importCache[asset] = assets
-            return unpack(assets)
-        end
-
     end
-
-    useMethods({ import = environment.import })
 end
 
+-- import موحدة دائماً
+function environment.import(asset)
+    if importCache[asset] then
+        return unpack(importCache[asset])
+    end
+
+    local assets
+    if asset:find("rbxassetid://") then
+        assets = { game:GetObjects(asset)[1] }
+
+    elseif web then
+        local content
+        if readFile and writeFile then
+            local hasFolderFunctions = (isFolder and makeFolder) ~= nil
+            local file = (hasFolderFunctions and "hydroxide/user/" .. user .. "/" .. asset .. ".lua")
+                         or ("hydroxide-" .. user .. "-" .. asset:gsub("/", "-") .. ".lua")
+            local ok, result = pcall(readFile, file)
+            if not ok then
+                content = fetch("https://raw.githubusercontent.com/" .. user .. "/Hydroxide/" .. branch .. "/" .. asset .. ".lua")
+                writeFile(file, content)
+            else
+                content = result
+            end
+        else
+            content = fetch("https://raw.githubusercontent.com/" .. user .. "/Hydroxide/" .. branch .. "/" .. asset .. ".lua")
+        end
+        assets = { loadstring(content, asset .. ".lua")() }
+
+    else
+        assets = { loadstring(readFile("hydroxide/" .. asset .. ".lua"), asset .. ".lua")() }
+    end
+
+    importCache[asset] = assets
+    return unpack(assets)
+end
+
+-- المجلدات (اختياري)
+if readFile and writeFile then
+    local hasFolderFunctions = (isFolder and makeFolder) ~= nil
+    if hasFolderFunctions then
+        local function createFolder(path)
+            if not isFolder(path) then makeFolder(path) end
+        end
+        createFolder("hydroxide")
+        createFolder("hydroxide/user")
+        createFolder("hydroxide/user/" .. user)
+        createFolder("hydroxide/user/" .. user .. "/methods")
+        createFolder("hydroxide/user/" .. user .. "/modules")
+        createFolder("hydroxide/user/" .. user .. "/objects")
+        createFolder("hydroxide/user/" .. user .. "/ui")
+        createFolder("hydroxide/user/" .. user .. "/ui/controls")
+        createFolder("hydroxide/user/" .. user .. "/ui/modules")
+    end
+end
+
+-- استيراد الميثودز
 useMethods(import("methods/string"))
 useMethods(import("methods/table"))
 useMethods(import("methods/userdata"))
 useMethods(import("methods/environment"))
 
---import("ui/main")
+-- import("ui/main")
