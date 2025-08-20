@@ -12,9 +12,9 @@ local importCache = {}
 -- دالة HTTP آمنة
 local function fetch(url)
     if game and game.HttpGet then
-        return game:HttpGet(game, url)
+        return game:HttpGet(url)  -- ✅ بدون تمرير game
     elseif game and game.HttpGetAsync then
-        return game:HttpGetAsync(game, url)
+        return game:HttpGetAsync(url)  -- ✅ نفس الشيء
     else
         error("<OH> ~ No HTTP method available in this executor")
     end
